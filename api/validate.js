@@ -21,23 +21,32 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`https://geocoder.ca/?postal=${cleanPostal}&json=1`);
-    const data = await response.json();
-    const city = (data.city || '').toLowerCase().trim();
+    const response = await fetch(
+      `https://geocoder.ca/?postal=${cleanPostal}&geoit=xml&json=1&showcountry=1&showcity=1`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+    const text = await response.text();
+    const data = JSON.parse(text);
+
+    // Log pour debug
+    console.log('geocoder response:', JSON.stringify(data));
+
+    const city = (data.standard?.city || data.city || '').toLowerCase().trim();
     const isKirkland = city === 'kirkland';
 
     return res.status(200).json({
       postal: cleanPostal,
-      city: data.city || 'Inconnu',
-      province: data.prov || 'Inconnu',
-      isKirkland: isKirkland
+      city: data.standard?.city || data.city || 'Inconnu',
+      province: data.standard?.prov || data.prov || 'Inconnu',
+      isKirkland: isKirkland,
+      raw: data
     });
 
   } catch (error) {
     return res.status(200).json({
       postal: cleanPostal,
-      isKirkland: true,
-      error: 'Validation indisponible'
+      isKirkland: false,
+      error: error.message
     });
   }
 };
