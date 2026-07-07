@@ -1,5 +1,4 @@
-export default async function handler(req, res) {
-  // CORS pour Fillout
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,18 +7,37 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { postal, mode } = req.query;
+  const { postal } = req.query;
 
   if (!postal) {
-    return res.status(400).json({ 
-      error: 'Code postal requis',
-      isKirkland: false 
-    });
+    return res.status(400).json({ error: 'Code postal requis', isKirkland: false });
   }
 
-  // Nettoyer le code postal (enlever espaces, majuscules)
   const cleanPostal = postal.replace(/\s/g, '').toUpperCase();
 
-  // Valider le format canadien (A1A1A1)
   const canadianPostalRegex = /^[A-Z]\d[A-Z]\d[A-Z]\d$/;
-  if (!canadianPostalRegex.test(cleanPostal))
+  if (!canadianPostalRegex.test(cleanPostal)) {
+    return res.status(200).json({ postal: cleanPostal, isKirkland: false, error: 'Format invalide' });
+  }
+
+  try {
+    const response = await fetch(`https://geocoder.ca/?postal=${cleanPostal}&json=1`);
+    const data = await response.json();
+    const city = (data.city || '').toLowerCase().trim();
+    const isKirkland = city === 'kirkland';
+
+    return res.status(200).json({
+      postal: cleanPostal,
+      city: data.city || 'Inconnu',
+      province: data.prov || 'Inconnu',
+      isKirkland: isKirkland
+    });
+
+  } catch (error) {
+    return res.status(200).json({
+      postal: cleanPostal,
+      isKirkland: true,
+      error: 'Validation indisponible'
+    });
+  }
+};
